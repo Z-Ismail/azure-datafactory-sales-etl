@@ -1,0 +1,109 @@
+{
+    "name": "sales_dataflow",
+    "properties": {
+        "type": "MappingDataFlow",
+        "typeProperties": {
+            "sources": [
+                {
+                    "dataset": {
+                        "referenceName": "SuperstoreCSV_Raw",
+                        "type": "DatasetReference"
+                    },
+                    "name": "CleanSuperstoreData"
+                }
+            ],
+            "sinks": [
+                {
+                    "dataset": {
+                        "referenceName": "sink_sales_sql",
+                        "type": "DatasetReference"
+                    },
+                    "name": "exportDatabase"
+                }
+            ],
+            "transformations": [
+                {
+                    "name": "ColumnRenaming"
+                },
+                {
+                    "name": "derivingColumns"
+                },
+                {
+                    "name": "filterCleanRows",
+                    "description": "Add expression for the filter"
+                }
+            ],
+            "scriptLines": [
+                "source(output(",
+                "          {Row ID} as string,",
+                "          {Order ID} as string,",
+                "          {Order Date} as string,",
+                "          {Ship Date} as string,",
+                "          {Ship Mode} as string,",
+                "          {Customer ID} as string,",
+                "          {Customer Name} as string,",
+                "          Segment as string,",
+                "          City as string,",
+                "          State as string,",
+                "          Country as string,",
+                "          {Postal Code} as string,",
+                "          Market as string,",
+                "          Region as string,",
+                "          {Product ID} as string,",
+                "          Category as string,",
+                "          {Sub-Category} as string,",
+                "          {Product Name} as string,",
+                "          Sales as string,",
+                "          Quantity as string,",
+                "          Discount as string,",
+                "          Profit as string,",
+                "          {Shipping Cost} as string,",
+                "          {Order Priority} as string",
+                "     ),",
+                "     allowSchemaDrift: true,",
+                "     validateSchema: false,",
+                "     ignoreNoFilesFound: false) ~> CleanSuperstoreData",
+                "CleanSuperstoreData select(mapColumn(",
+                "          OrderID = {Order ID},",
+                "          OrderDate = {Order Date},",
+                "          ShipDate = {Ship Date},",
+                "          CustomerID = {Customer ID},",
+                "          Segment,",
+                "          State,",
+                "          Country,",
+                "          Region,",
+                "          ProductID = {Product ID},",
+                "          Category,",
+                "          {Sub-Category},",
+                "          Sales,",
+                "          Quantity,",
+                "          Profit",
+                "     ),",
+                "     skipDuplicateMapInputs: true,",
+                "     skipDuplicateMapOutputs: true) ~> ColumnRenaming",
+                "ColumnRenaming derive(ProfitMargin = round(toFloat(Profit) / toFloat(Sales), 2),",
+                "          HighValueOrder = iif(toFloat(Sales) > 1000, 'Yes', 'No'),",
+                "          CustomerID = trim(CustomerID),",
+                "          ProductID = trim(ProductID),",
+                "          State = trim(State),",
+                "          Region = trim(Region),",
+                "          Sales = iif(isNull(Sales), '0', Sales),",
+                "          Profit = iif(isNull(Profit), '0', Profit)) ~> derivingColumns",
+                "derivingColumns filter(!isNull(CustomerID) && trim(CustomerID) != ''",
+                "&& !isNull(ProductID) && trim(ProductID) != ''",
+                "&& !isNull(Sales) && toFloat(Sales) > 0",
+                "&& !isNull(Quantity) && toInteger(Quantity) > 0) ~> filterCleanRows",
+                "filterCleanRows sink(allowSchemaDrift: true,",
+                "     validateSchema: false,",
+                "     deletable:false,",
+                "     insertable:true,",
+                "     updateable:false,",
+                "     upsertable:false,",
+                "     format: 'table',",
+                "     skipDuplicateMapInputs: true,",
+                "     skipDuplicateMapOutputs: true,",
+                "     errorHandlingOption: 'stopOnFirstError') ~> exportDatabase"
+            ]
+        }
+    }
+}
